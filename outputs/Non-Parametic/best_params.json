@@ -1,0 +1,134 @@
+{
+  "split_sha256": "7cce775efc373116a2d34f48d937b9f3922e62c220529916a62c4a3a5b5c77fe",
+  "split_path": "/content/AgeGender/data/splits/full_metadata_with_splits.csv",
+  "n_train": 13989,
+  "n_val": 3497,
+  "offline_smoke": false,
+  "git_commit_sha": "e6a5f61d8f72fc46ab0358fdce7a1b09bfbb8694",
+  "dependency_versions": {
+    "python": "3.12.13",
+    "torch": "2.11.0+cu128",
+    "cuda": "12.8",
+    "timm": "1.0.27"
+  },
+  "feature_sources": {
+    "raw_pca": {
+      "best": {
+        "age_knn": {
+          "k": 10,
+          "k_effective": 10,
+          "metric": "cosine",
+          "val_mae": 11.160001655151829,
+          "feature_source": "raw_pca",
+          "n_components_requested": 100,
+          "n_components_used": 100,
+          "l2_normalize": true,
+          "scaler_mean_shape": [
+            12288
+          ]
+        },
+        "gender_knn": {
+          "k": 10,
+          "k_effective": 10,
+          "metric": "euclidean",
+          "val_balanced_accuracy": 0.7583793544715896,
+          "feature_source": "raw_pca",
+          "n_components_requested": 100,
+          "n_components_used": 100,
+          "l2_normalize": false,
+          "scaler_mean_shape": [
+            12288
+          ]
+        },
+        "age_kernel": {
+          "bandwidth_scale": 0.25,
+          "bandwidth": 0.35411008015890766,
+          "val_mae": 13.613018140260376,
+          "feature_source": "raw_pca",
+          "n_components_requested": 50,
+          "n_components_used": 50,
+          "l2_normalize": true,
+          "scaler_mean_shape": [
+            12288
+          ]
+        },
+        "gender_kernel": {
+          "bw_method": 2.0,
+          "val_balanced_accuracy": 0.8429254955794796,
+          "feature_source": "raw_pca",
+          "n_components_requested": 200,
+          "n_components_used": 200,
+          "l2_normalize": false,
+          "scaler_mean_shape": [
+            12288
+          ]
+        }
+      },
+      "n_candidates": {
+        "age_knn": 72,
+        "gender_knn": 72,
+        "age_kernel": 30,
+        "gender_kernel": 30
+      }
+    },
+    "frozen_backbone": {
+      "best": {
+        "age_knn": {
+          "k": 20,
+          "k_effective": 20,
+          "metric": "cosine",
+          "val_mae": 8.759589554789969,
+          "feature_source": "frozen_backbone",
+          "n_components_requested": 100,
+          "n_components_used": 100,
+          "l2_normalize": false,
+          "scaler_mean_shape": [
+            512
+          ]
+        },
+        "gender_knn": {
+          "k": 20,
+          "k_effective": 20,
+          "metric": "euclidean",
+          "val_balanced_accuracy": 0.8151987431378025,
+          "feature_source": "frozen_backbone",
+          "n_components_requested": 100,
+          "n_components_used": 100,
+          "l2_normalize": false,
+          "scaler_mean_shape": [
+            512
+          ]
+        },
+        "age_kernel": {
+          "bandwidth_scale": 0.25,
+          "bandwidth": 0.3538836248615225,
+          "val_mae": 10.318153320766381,
+          "feature_source": "frozen_backbone",
+          "n_components_requested": 25,
+          "n_components_used": 25,
+          "l2_normalize": true,
+          "scaler_mean_shape": [
+            512
+          ]
+        },
+        "gender_kernel": {
+          "bw_method": "scott",
+          "val_balanced_accuracy": 0.7879859589638295,
+          "feature_source": "frozen_backbone",
+          "n_components_requested": 10,
+          "n_components_used": 10,
+          "l2_normalize": true,
+          "scaler_mean_shape": [
+            512
+          ]
+        }
+      },
+      "n_candidates": {
+        "age_knn": 96,
+        "gender_knn": 96,
+        "age_kernel": 40,
+        "gender_kernel": 40
+      }
+    }
+  }
+}

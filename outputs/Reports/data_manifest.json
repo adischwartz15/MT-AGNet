@@ -1,0 +1,42 @@
+{
+  "n_input_rows": 66966,
+  "n_dropped_corrupt_or_unreadable": 0,
+  "n_duplicate_paths_removed": 0,
+  "n_duplicate_hashes_removed": 43651,
+  "n_final_rows": 23315,
+  "n_missing_age": 0,
+  "n_missing_gender_label": 0,
+  "age_distribution": {
+    "count": 23315,
+    "mean": 33.252412609907786,
+    "std": 19.891379087135494,
+    "min": 1.0,
+    "max": 116.0,
+    "quantiles": {
+      "0.1": 5.0,
+      "0.25": 23.0,
+      "0.5": 29.0,
+      "0.75": 45.0,
+      "0.9": 61.0
+    }
+  },
+  "gender_label_distribution": {
+    "0": 12185,
+    "1": 11130
+  },
+  "image_size_stats": {
+    "width_mean": 200.0,
+    "height_mean": 200.0,
+    "width_min": 200,
+    "width_max": 200
+  },
+  "has_subject_id": false,
+  "split_counts": {
+    "train": 13989,
+    "validation": 3497,
+    "test": 3497,
+    "calibration": 2332
+  },
+  "split_file_sha256": "7cce775efc373116a2d34f48d937b9f3922e62c220529916a62c4a3a5b5c77fe",
+  "split_file": "/content/agegender_runs/2026-07-13_1210_core_seed42/data_quality/full_metadata_with_splits.csv"
+}
