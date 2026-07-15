@@ -1,0 +1,209 @@
+# Config-driven architecture ablation suite (see docs/architecture_analysis.md
+# and docs/experiment_plan.md for the research questions each experiment
+# answers). Each experiment is a set of overrides merged on top of
+# default.yaml + data.yaml + model.yaml + training.yaml. All experiments use
+# the same train/val/test split (data/splits/) whenever the split exists.
+
+experiments:
+  exp_0_simple_cnn_shared_adapters_learned_balance:
+    description: >
+      Controlled backbone baseline: a conventional non-residual CNN
+      (src/models/simple_cnn.py) using the exact same shared multi-task
+      structure, task-specific adapters, learned uncertainty loss
+      balancing, training setup, and data split as Experiment D. This
+      isolates the contribution of the Custom ResNet-18 residual backbone
+      -- it is not a general CNN architecture benchmark, and this plain
+      CNN is never the project's main backbone.
+    overrides:
+      model:
+        architecture: shared_adapters
+        backbone:
+          name: simple_cnn
+        adapters:
+          enabled: true
+        loss_balancing:
+          mode: learned_uncertainty
+
+  exp_0b_plain_deep18_no_skip_shared_adapters_learned_balance:
+    description: >
+      Depth/width-matched plain (non-residual) counterpart to Custom
+      ResNet-18 (src/models/plain_deep18_no_skip.py): identical stem,
+      stage widths, block layout [2,2,2,2], embedding size, adapters,
+      learned uncertainty loss balancing, and training setup as
+      Experiment D -- only the residual/skip-connection additions are
+      removed. Unlike Experiment 0 (SimpleCNN, which also differs in
+      depth/width and is therefore an efficiency/accuracy trade-off vs.
+      ResNet), this experiment isolates the causal contribution of
+      residual connections specifically, holding depth and width fixed.
+      See docs/experiment_plan.md for the exact parameter-count
+      difference (the three unavoidable 1x1 downsample-shortcut
+      projections ResNet has and this backbone cannot).
+    overrides:
+      model:
+        architecture: shared_adapters
+        backbone:
+          name: plain_deep18_no_skip
+        adapters:
+          enabled: true
+        loss_balancing:
+          mode: learned_uncertainty
+
+  exp_0c_custom_resnet18_no_zero_init_shared_adapters_learned_balance:
+    description: >
+      Same architecture, seeds, and training setup as Experiment D (Custom
+      ResNet-18, shared adapters, learned uncertainty loss balancing), with
+      model.backbone.zero_init_residual=false -- isolates the effect of
+      zero-initializing each residual branch's final normalization layer
+      specifically, separate from the presence of the residual connections
+      themselves. Two comparisons this recommended control enables:
+      PlainDeep18NoSkip vs. this variant tests residual shortcuts more
+      cleanly than PlainDeep18NoSkip vs. the default (zero-init) ResNet
+      (Experiment D), since both share the same non-zero-init residual
+      branch initialization; and Experiment D vs. this variant isolates
+      the effect of zero-initialized residual branches on their own. See
+      docs/experiment_plan.md.
+    overrides:
+      model:
+        architecture: shared_adapters
+        backbone:
+          name: custom_resnet18
+          zero_init_residual: false
+        adapters:
+          enabled: true
+        loss_balancing:
+          mode: learned_uncertainty
+
+  exp_a_separate:
+    description: >
+      Two independent Custom ResNet-18 backbones, one per task, with
+      independent heads and independent training. Tests whether a shared
+      backbone is even necessary.
+    overrides:
+      model:
+        architecture: separate
+        adapters:
+          enabled: false
+        loss_balancing:
+          mode: fixed
+
+  exp_b_shared_no_adapters:
+    description: >
+      One shared Custom ResNet-18 backbone feeding both an age head and a
+      gender head directly, no adapters, fixed loss weights. Tests whether
+      naive sharing causes negative transfer relative to Experiment A.
+    overrides:
+      model:
+        architecture: shared_no_adapters
+        adapters:
+          enabled: false
+        loss_balancing:
+          mode: fixed
+
+  exp_c_shared_adapters:
+    description: >
+      Shared backbone + task-specific bottleneck adapters, fixed loss
+      weights. Tests whether adapters recover per-task specialization
+      lost in Experiment B.
+    overrides:
+      model:
+        architecture: shared_adapters
+        adapters:
+          enabled: true
+        loss_balancing:
+          mode: fixed
+
+  exp_d_shared_adapters_learned_balance:
+    description: >
+      Shared backbone + adapters + learned homoscedastic-uncertainty loss
+      balancing. Tests whether learned weighting improves on fixed weights
+      when adapters are already present.
+    overrides:
+      model:
+        architecture: shared_adapters
+        adapters:
+          enabled: true
+        loss_balancing:
+          mode: learned_uncertainty
+
+  exp_d_gender_loss_rescaled:
+    description: >
+      Diagnostic follow-up to Experiment D: same shared backbone + adapters
+      + learned homoscedastic-uncertainty loss balancing, except the gender
+      cross-entropy loss is rescaled (gender_loss_scale=8.5) before entering
+      the learned-weighting term only -- never in reported metrics. In the
+      original Experiment D run, the learned weights converged to
+      effective_gender_weight~=5.78 vs. effective_age_weight~=0.57 (~10x),
+      traced back to age_loss (~1.79, "years" scale) and gender_loss (~0.21,
+      "nats" scale) living on very different numeric scales rather than a
+      real task-difficulty difference. 8.5 is chosen so
+      age_loss/(gender_loss*8.5) ~= 1 at that same convergence point. Tests
+      whether correcting the scale mismatch alone lets learned balancing
+      beat fixed weights (Experiment C), which it did not before this fix.
+    overrides:
+      model:
+        architecture: shared_adapters
+        adapters:
+          enabled: true
+        loss_balancing:
+          mode: learned_uncertainty
+          learned_uncertainty:
+            gender_loss_scale: 8.5
+
+  exp_d_log_var_clamped:
+    description: >
+      Diagnostic follow-up to Experiment D: same shared backbone + adapters
+      + learned homoscedastic-uncertainty loss balancing, except
+      log_var_age/log_var_gender are clamped to [-1.0, 1.0] before computing
+      the precision weights -- caps the maximum learned weight ratio between
+      tasks to ~e^2 (~7.4x), instead of the ~10x ratio observed uncontrolled
+      in the original Experiment D run. Tests whether bounding the imbalance
+      alone (without correcting its root cause, unlike
+      exp_d_gender_loss_rescaled) is enough to let learned balancing beat
+      fixed weights (Experiment C).
+    overrides:
+      model:
+        architecture: shared_adapters
+        adapters:
+          enabled: true
+        loss_balancing:
+          mode: learned_uncertainty
+          learned_uncertainty:
+            log_var_clamp_min: -1.0
+            log_var_clamp_max: 1.0
+
+  exp_e_parametric_vs_knn:
+    description: >
+      Compares the best parametric multi-task model (from exp_d, or exp_c if
+      learned balancing does not help) against a non-parametric k-NN
+      baseline built on its embedding space. Executed via
+      scripts/build_knn_index.py + scripts/evaluate.py --compare-knn, not a
+      separate training run.
+    base_experiment: exp_d_shared_adapters_learned_balance
+    overrides: {}
+
+  exp_f_pretrained_vs_scratch:
+    description: >
+      Optional comparison of a SimCLR self-supervised pretrained encoder
+      (scripts/pretrain.py) against the same architecture trained from
+      scratch. Requires running scripts/pretrain.py first; skipped
+      automatically (with a clear message) if no pretrained checkpoint
+      exists.
+    overrides:
+      model:
+        architecture: shared_adapters
+        adapters:
+          enabled: true
+        pretrained_checkpoint: ./checkpoints/simclr_encoder.pt
+        loss_balancing:
+          mode: learned_uncertainty
+
+run_order:
+  - exp_0_simple_cnn_shared_adapters_learned_balance
+  - exp_0b_plain_deep18_no_skip_shared_adapters_learned_balance
+  - exp_0c_custom_resnet18_no_zero_init_shared_adapters_learned_balance
+  - exp_a_separate
+  - exp_b_shared_no_adapters
+  - exp_c_shared_adapters
+  - exp_d_shared_adapters_learned_balance
+  - exp_e_parametric_vs_knn
+  - exp_f_pretrained_vs_scratch

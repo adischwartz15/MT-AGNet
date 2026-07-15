@@ -1,0 +1,57 @@
+# Dataset configuration.
+#
+# Only "age" and "gender_label" are ever used as supervision targets.
+# Race/ethnicity metadata, if present, is carried purely for documentation
+# and is never used as a feature, target, or split criterion.
+
+dataset:
+  source: utkface              
+  image_root: ./data/raw
+  image_size: 128
+  channels: 3
+
+  utkface:
+    glob_pattern: "**/*.jpg"
+
+  csv:
+    metadata_csv: ./data/raw/metadata.csv
+    image_path_column: image_path
+    age_column: age
+    gender_label_column: gender_label
+    split_column: null          # optional pre-existing split column
+    subject_id_column: null     # optional subject id for subject-level splitting
+    label_mapping: {}           # optional raw-value -> {0,1} mapping for gender labels
+
+  gender_label_names:
+    "0": gender_label_0
+    "1": gender_label_1
+
+  age_min: 0
+  age_max: 120
+
+# Four-way split, each used for exactly one purpose:
+#   train        -> model fitting
+#   validation   -> early stopping + checkpoint selection only
+#   calibration  -> fitting split-conformal age intervals only (never used
+#                   for early stopping or final evaluation)
+#   test         -> final evaluation only, touched once per checkpoint
+split:
+  train_fraction: 0.60
+  validation_fraction: 0.15
+  calibration_fraction: 0.10
+  test_fraction: 0.15
+  seed: 42
+  subject_level_if_available: true
+
+validation:
+  min_image_size: 32
+  max_file_size_mb: 20
+  detect_duplicate_hashes: true
+  detect_duplicate_paths: true
+  drop_corrupt_images: true
+  report_dir: ./outputs/data_quality
+
+dataloader:
+  batch_size: 64
+  num_workers: 2
+  pin_memory: false

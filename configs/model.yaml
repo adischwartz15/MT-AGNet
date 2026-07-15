@@ -1,0 +1,82 @@
+# Model architecture configuration.
+# The main research backbone is a manually implemented ResNet-18 (see
+# src/models/custom_resnet.py). A conventional non-residual CNN
+# (src/models/simple_cnn.py) is also available, but only as a controlled
+# baseline (backbone.name: simple_cnn -- see
+# exp_0_simple_cnn_shared_adapters_learned_balance in experiments.yaml);
+# it is never the default and never the project's main architecture.
+# No prebuilt architectures, model hubs, or downloaded ImageNet weights are used.
+
+model:
+  architecture: shared_adapters   # separate | shared_no_adapters | shared_adapters
+  backbone:
+    name: custom_resnet18         # custom_resnet18 (default, main backbone) | simple_cnn (baseline only)
+    block_layout: [2, 2, 2, 2]    # ResNet-18 layout (custom_resnet18 only)
+    in_channels: 3
+    stem_channels: 64             # custom_resnet18 only
+    embedding_dim: 512
+    zero_init_residual: true      # custom_resnet18 only
+
+  pretrained_checkpoint: null      # path to a checkpoint produced by this repo, or null
+
+  adapters:
+    enabled: true
+    # Task-adapter hidden (bottleneck) dimension. Raised from 128 -> 256 so
+    # each task-specific adapter has more capacity to transfer richer
+    # features out of the shared backbone embedding before its head --
+    # applies identically to every experiment using shared_adapters
+    # (exp_0, exp_0b, exp_0c, exp_c, exp_d), so it does not change the
+    # relative comparison between backbones.
+    bottleneck_dim: 256
+    dropout: 0.1
+
+  age_head:
+    hidden_dim: 128
+    dropout: 0.1
+    age_min: 0
+    age_max: 120
+
+  gender_head:
+    hidden_dim: 128
+    dropout: 0.1
+    num_classes: 2
+    class_names: ["gender_label_0", "gender_label_1"]
+    confidence_threshold: 0.80
+    class_weights: null           # optional list, e.g. [1.0, 1.2]
+
+  loss_balancing:
+    mode: fixed                   # fixed | learned_uncertainty
+    fixed:
+      age_weight: 1.0
+      gender_weight: 1.0
+    learned_uncertainty:
+      init_log_var_age: 0.0
+      init_log_var_gender: 0.0
+      # Number of initial epochs (global, not per-stage) to train with
+      # equal fixed weights (1.0/1.0) before switching to the learned
+      # log-variance weights -- stabilizes the learned-uncertainty
+      # mechanism against early gradient interference, before the
+      # log-variance parameters have seen enough loss signal to be
+      # meaningful. 0 disables warmup (learned weighting from epoch 1).
+      # Only relevant when loss_balancing.mode == learned_uncertainty.
+      warmup_epochs: 3
+      # Diagnosed on a real exp_d run: the learned weights converge close to
+      # log_var_task ~= log(loss_task), so gender (cross-entropy, "nats"
+      # scale, ~0.21 at convergence) ends up with a much higher weight than
+      # age (pinball, "years" scale, ~1.79 at convergence) purely from this
+      # unit mismatch, not real task difficulty (observed effective weights:
+      # age~=0.57, gender~=5.78, a ~10x ratio). Both knobs below default to a
+      # no-op -- exp_d and every other existing config is unaffected unless
+      # an experiment explicitly overrides them.
+      gender_loss_scale: 1.0        # multiplies gender_loss only inside the weighting term (never in reported metrics)
+      log_var_clamp_min: null       # e.g. -1.0 to bound how low log_var_age/log_var_gender can go
+      log_var_clamp_max: null       # e.g. 1.0 to bound how high log_var_age/log_var_gender can go
+
+gradcam:
+  target_layer: layer4            # last residual stage of the backbone
+
+knn:
+  k: 15
+  distance_weighted: true
+  metric: euclidean
+  index_dir: ./outputs/knn

@@ -1,0 +1,96 @@
+# Training configuration: progressive fine-tuning stages, optimizer,
+# scheduler, and regularization settings.
+#
+# Progressive freezing (Stage A -> B -> C) is only scientifically meaningful
+# when the backbone starts from a checkpoint (self-supervised pretraining
+# from this repo, or a compatible user-supplied local checkpoint). When the
+# backbone is randomly initialized, the trainer emits a warning and runs a
+# single supervised warm-up stage instead of freezing random weights.
+
+training:
+  batch_size: 64
+  num_workers: 2
+  optimizer: adamw
+  weight_decay: 0.05
+  grad_clip_norm: 1.0
+  mixed_precision: true
+  seed: 42
+  # Raised from 8 -> 12 so deeper/slower-converging architectures (e.g. the
+  # 18-layer ResNet backbone) have more room to keep improving before
+  # training stops; applies identically to every experiment.
+  early_stopping_patience: 12
+  selection_metrics: [val_age_mae, val_gender_accuracy, val_balanced_score]
+
+  # Differential (discriminative) learning rates: the backbone trains at
+  # `stage_lr * backbone_lr_multiplier` while adapters/heads (and the
+  # learned-uncertainty log-variances) train at the full `stage_lr` --
+  # instead of ever fully freezing the backbone in the common
+  # (no-pretrained-checkpoint) path, it keeps training, just more gently,
+  # which protects it from large destabilizing early updates without
+  # stopping it from adapting at all. Applies to every architecture/stage
+  # uniformly (see src/training/trainer.py:_build_optimizer).
+  differential_lr:
+    enabled: true
+    backbone_lr_multiplier: 0.1
+  # Optional hard caps on batches-per-epoch, independent of epoch count --
+  # unset (null/absent) by default, meaning no limit (every real training
+  # run iterates the full dataset each epoch). Only meant to be overridden
+  # for a fast "smoke test" integration check (e.g. --set
+  # training.max_train_batches_per_epoch=3), so a 1-epoch smoke run doesn't
+  # still have to iterate an entire large dataset once to validate the
+  # pipeline end-to-end.
+  # max_train_batches_per_epoch: null
+  # max_val_batches_per_epoch: null
+
+  scheduler:
+    name: cosine
+    # Real warmup: the LR starts at warmup_start_factor * base_lr and rises
+    # linearly to base_lr over warmup_epochs, then cosine-anneals. Raised
+    # 1 -> 2 epochs and an explicit 0.1 start factor because a single warmup
+    # epoch with the old 1/warmup_epochs start factor gave a factor of 1.0
+    # (i.e. no warmup at all). See src/training/optim.py.
+    warmup_epochs: 2
+    warmup_start_factor: 0.1
+
+  stages:
+    stage_a:
+      name: "Stage A: frozen backbone, train adapters + heads"
+      epochs: 6
+      lr: 1.0e-3
+      freeze_backbone: true
+      unfreeze_layers: []
+    stage_b:
+      name: "Stage B: unfreeze layer4"
+      epochs: 6
+      lr: 3.0e-4
+      freeze_backbone: true
+      unfreeze_layers: [layer4]
+    stage_c:
+      name: "Stage C: full fine-tune"
+      epochs: 8
+      lr: 5.0e-5
+      freeze_backbone: false
+      unfreeze_layers: [layer1, layer2, layer3, layer4, stem]
+
+  warm_up_from_scratch:
+    # used instead of staged freezing when there is no pretrained checkpoint
+    # Raised from 12 -> 20 to give deeper architectures more time to
+    # converge; early stopping (above) still applies, so this is a ceiling,
+    # not a forced longer run.
+    epochs: 20
+    lr: 1.0e-3
+
+pretrain:
+  epochs: 20
+  batch_size: 128
+  lr: 3.0e-4
+  weight_decay: 1.0e-6
+  temperature: 0.5
+  projection_dim: 128
+  num_workers: 2
+  checkpoint_name: simclr_encoder.pt
+
+calibration:
+  method: split_conformal
+  alpha: 0.10                 # target miscoverage -> 90% intervals
+  output_dir: ./outputs/calibration

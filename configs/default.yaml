@@ -1,0 +1,20 @@
+project_name: face-multitask-research
+seed: 42
+device: auto            # auto | cpu | cuda
+
+paths:
+  data_dir: ./data
+  raw_dir: ./data/raw
+  processed_dir: ./data/processed
+  splits_dir: ./data/splits
+  checkpoint_dir: ./checkpoints
+  output_dir: ./outputs
+
+logging:
+  level: INFO
+  log_dir: ./outputs/logs
+
+disclaimer: >
+  This tool is for research and demonstration only. Predictions may be
+  inaccurate, biased, or unreliable. Gender-related output reflects labels
+  in the training dataset and is not a determination of identity.

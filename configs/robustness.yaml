@@ -1,0 +1,54 @@
+# Deterministic robustness / corruption evaluation configuration.
+# Every corruption is applied to the held-out test set only, with a fixed
+# seed, at several severities. See src/evaluation/robustness.py.
+
+robustness:
+  seed: 42
+  num_samples_per_corruption_plot: 6
+  output_dir: ./outputs/robustness
+
+  corruptions:
+    gaussian_blur:
+      severities: [1, 2, 3]
+      param_name: sigma
+      params: [0.8, 1.6, 2.6]
+    gaussian_noise:
+      severities: [1, 2, 3]
+      param_name: std
+      params: [0.03, 0.08, 0.15]
+    low_resolution:
+      severities: [1, 2, 3]
+      param_name: scale_factor
+      params: [0.5, 0.3, 0.15]
+    jpeg_compression:
+      severities: [1, 2, 3]
+      param_name: quality
+      params: [40, 20, 10]
+    low_brightness:
+      severities: [1, 2, 3]
+      param_name: factor
+      params: [0.7, 0.5, 0.3]
+    high_brightness:
+      severities: [1, 2, 3]
+      param_name: factor
+      params: [1.3, 1.6, 2.0]
+    low_contrast:
+      severities: [1, 2, 3]
+      param_name: factor
+      params: [0.7, 0.5, 0.3]
+    high_contrast:
+      severities: [1, 2, 3]
+      param_name: factor
+      params: [1.4, 1.8, 2.4]
+    grayscale:
+      severities: [1, 2, 3]
+      param_name: blend_factor
+      params: [0.4, 0.7, 1.0]
+    partial_occlusion:
+      severities: [1, 2, 3]
+      param_name: occlusion_fraction
+      params: [0.1, 0.2, 0.35]
+    partial_crop:
+      severities: [1, 2, 3]
+      param_name: crop_fraction
+      params: [0.1, 0.2, 0.35]
