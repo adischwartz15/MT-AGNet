@@ -5,6 +5,8 @@ and dataset gender-label classification, built around a manually
 implemented ResNet-18, shared representations, task-specific adapters,
 conformal calibration, and selective prediction.
 
+**GitHub:** [github.com/adischwartz15/MT-AGNet](https://github.com/adischwartz15/MT-AGNet)
+
 > **Research and demonstration only.** Predictions may be inaccurate,
 > biased, or unreliable. Gender-related output reflects labels in the
 > training dataset and is **not** a determination of identity. This
@@ -12,11 +14,18 @@ conformal calibration, and selective prediction.
 > identity verification, medical diagnosis, admissions, insurance, or any
 > other high-impact decision. See [Ethical limitations](#ethical-limitations).
 
+## Motivation
+
+Multi-task learning promises a free lunch: one shared backbone instead of
+two, each task's gradient regularizing the other. It can just as easily
+backfire into **negative transfer**, where two tasks fight over the same
+representation and both get worse. 
+This project treats that as an open question, not an assumption - every design choice (sharing, adapters, learned loss balancing, residual connections) gets its own controlled experiment against one fixed data split, following a protocol
+pre-registered *before* results are observed.
+
 ## Highlights
 
-- **Manually implemented ResNet-18** backbone -- no `torchvision.models`,
-  `timm` backbones, or externally pretrained checkpoints anywhere in the
-  ablation suite.
+- **Manually implemented ResNet-18** backbone 
 - **Shared backbone + task-specific residual bottleneck adapters** for
   age and dataset gender-label prediction, with an optional learned
   homoscedastic-uncertainty loss balancer instead of fixed weights.
@@ -33,7 +42,7 @@ conformal calibration, and selective prediction.
   residual-connections ablation) with gradient-interference and
   representation-similarity (CKA) analysis.
 - Reproducible, leakage-checked data splitting and fully isolated
-  per-experiment/seed artifacts -- see [Reproducibility and scope](#reproducibility-and-scope).
+  per-experiment/seed artifacts - see [Reproducibility and scope](#reproducibility-and-scope).
 
 ## Research question
 
@@ -46,13 +55,8 @@ actually justified, once measured against a depth/width-matched
 non-residual baseline rather than an unrelated compact CNN?
 
 These questions are answered by a config-driven ablation suite (Experiments
-0/0b/0c, A-F) against one fixed, reused data split, following a protocol
-pre-registered before results are observed -- see
-[docs/experiment_plan.md](docs/experiment_plan.md) and
-[docs/final_evaluation_protocol.md](docs/final_evaluation_protocol.md).
-Results below are not a claim that every question was answered
-conclusively; see [docs/results.md](docs/results.md) for what one real
-run actually found.
+0/0b/0c, A-E) against one fixed, reused data split, following a protocol
+pre-registered before results are observed.
 
 ## Architecture
 
@@ -60,23 +64,41 @@ run actually found.
 Input face image
     |
     v
-Custom ResNet-18 backbone (manually implemented)
+Custom ResNet-18 backbone
     |
     v
 Shared 512-dimensional embedding
     |
     +-- Age Adapter -------- Age Quantile Head -------- q10, q50, q90
     |
-    +-- Gender Adapter ----- Classification Head ------- probabilities / "Not sure"
+    +-- Gender Adapter ----- Classification Head ------- probabilities (or "Not sure")
 ```
 
-A single hand-written ResNet-18 backbone feeds two residual bottleneck
+A single ResNet-18 backbone feeds two residual bottleneck
 adapters, one per task, which in turn feed the age quantile head and the
-gender classification head. Two controlled baseline backbones
-(`simple_cnn`, `plain_deep18_no_skip`) also exist purely to isolate what
-the residual design contributes -- neither is used by the deployed model.
+gender classification head. 
+Two controlled baseline backbones (`simple_cnn`, `plain_deep18_no_skip`) also exist purely to isolate what the residual design contributes - neither is used by the deployed model.
 See [docs/architecture_analysis.md](docs/architecture_analysis.md) for
 the full module-by-module design and analysis methodology.
+
+## Experiments
+
+One fixed, leakage-checked data split is reused by every experiment below
+(see [Reproducibility and scope](#reproducibility-and-scope)) - so
+differences in the table are attributable to the architecture/loss
+change being tested, not to different data.
+
+| # | Experiment | What it isolates |
+|---|---|---|
+| 0 / 0b / 0c | SimpleCNN / PlainDeep18 (no skip) / ResNet-18 (no zero-init) | Whether residual connections - and zero-initializing them - actually help, holding depth/width fixed |
+| A | Separate backbones | Whether a shared backbone is worth it at all |
+| B | Shared, no adapters | Whether naive sharing causes negative transfer |
+| C | Shared + adapters, fixed loss weights | Whether adapters recover per-task specialization |
+| D | Shared + adapters, learned loss balancing | Whether learned weighting beats simple fixed weights |
+| E | Parametric vs. k-NN | How much of the performance comes from the trained heads vs. the learned embedding space itself |
+
+See [docs/experiment_plan.md](docs/experiment_plan.md) for the full
+rationale behind each experiment.
 
 ## Headline results
 
@@ -103,60 +125,28 @@ predictions (see [docs/evaluation.md](docs/evaluation.md) for the
 distinction from coverage and effective accuracy). The q10-q90 interval
 is a nominal 80% interval before conformal calibration; the row above is
 raw, not calibrated. These numbers describe one checkpoint on one
-dataset split -- see [Reproducibility and scope](#reproducibility-and-scope).
+dataset split - see [Reproducibility and scope](#reproducibility-and-scope).
 
-## Quick start
+## Running the project
 
-```bash
-git clone https://github.com/adischwartz15/AgeGender.git
-cd AgeGender
-make install
-cp .env.example .env              # fill in Kaggle credentials (see docs/data_card.md)
-make download-data
-make prepare-data
-make train
-make calibrate CHECKPOINT=checkpoints/multitask_best_balanced_score.pt
-make evaluate CHECKPOINT=checkpoints/multitask_best_balanced_score.pt
-```
+Every experiment in this repository was run through the notebook below,
+end-to-end on Colab GPUs. It clones this repository, install dependencies, download the dataset, and run the full pipeline (data validation, training, calibration, evaluation, optional analyses) with live per-epoch progress, Google Drive persistence, and safe resume after an interrupted session:
 
-Requirements: Python 3.11+ (3.10+ also works).
+- **[notebooks/train_evaluate_colab.ipynb](notebooks/train_evaluate_colab.ipynb)** -- Google Colab, the full ablation suite (0/0b/0c, A-D) plus Experiment E and optional robustness/Grad-CAM/multi-seed analyses.
 
-## Main workflow
-
-```bash
-make prepare-data                          # validate + split raw metadata
-make train                                  # single default configuration
-make experiments                            # full ablation suite (0/0b/0c, A-F)
-make calibrate CHECKPOINT=<checkpoint>.pt   # split-conformal age intervals
-make build-knn CHECKPOINT=<checkpoint>.pt   # k-NN baseline index
-make evaluate CHECKPOINT=<checkpoint>.pt    # test-set metrics + k-NN comparison
-make robustness CHECKPOINT=<checkpoint>.pt  # corruption robustness sweep
-make gradcam CHECKPOINT=<checkpoint>.pt     # Grad-CAM heatmaps
-```
-
-`prepare-data`, `pretrain`, `train`, and `experiments` accept
-`--set key.path=value` config overrides via `ARGS` (e.g.
-`make train ARGS="--set model.architecture=shared_no_adapters"`) instead
-of editing YAML in place. The evaluation-side commands (`calibrate`,
-`build-knn`, `evaluate`, `robustness`, `gradcam`, `compare-backbones`,
-`run-seeds`) take explicit flags instead (`CHECKPOINT=`, `EXPERIMENT=`,
-`SEEDS=`, etc. -- see each script's `--help`), not `--set`. See
-[Documentation](#documentation) below for the guide covering each stage.
+See [docs/execution_modes.md](docs/execution_modes.md) for every
+configuration flag, and [docs/reproducibility.md](docs/reproducibility.md)
+for seeds, splits, and compute expectations. 
 
 ## Repository structure
-
 ```
 configs/     YAML configuration (data, model, training, experiments, robustness)
 src/         Library code (data, models, losses, training, evaluation, inference, utils)
 scripts/     CLI entry points, one per pipeline stage
 tests/       Pytest suite, including a synthetic-data smoke training test
-notebooks/   Self-contained Colab and Kaggle notebooks running the full pipeline
+notebooks/   Self-contained Colab notebooks running the full pipeline
 docs/        Architecture, experiments, data/model cards, reproducibility
 ```
-
-`data/`, `checkpoints/`, `experiments/`, and `outputs/` hold generated
-artifacts and are never committed -- see
-[docs/reproducibility.md](docs/reproducibility.md) for the full layout.
 
 ## Documentation
 
@@ -166,14 +156,10 @@ artifacts and are never committed -- see
 - [Headline results (full numbers)](docs/results.md)
 - [Backbone comparison suite](docs/backbone_comparison.md)
 - [Conformal calibration](docs/calibration.md)
-- [Robustness evaluation](docs/robustness.md)
 - [Evaluation metric definitions](docs/evaluation.md)
 - [Non-parametric baselines (raw/PCA and frozen-backbone)](docs/nonparametric_baselines.md)
-- [Colab and Kaggle notebooks, execution modes and flags](docs/execution_modes.md)
+- [Colab notebooks, execution modes and flags](docs/execution_modes.md)
 - [Reproducibility](docs/reproducibility.md)
-- [Data card](docs/data_card.md)
-- [Model card](docs/model_card.md)
-- [Troubleshooting](docs/troubleshooting.md)
 
 ## Ethical limitations
 
@@ -188,26 +174,15 @@ artifacts and are never committed -- see
 - This system has not been validated for, and must not be used for:
   employment, policing, surveillance, identity verification, medical
   diagnosis, admissions, insurance, or any other high-impact decision.
-- Grad-CAM output is a gradient-weighted visualization, **not proof of
-  causality** and not an explanation of the model's reasoning.
 
-See [docs/model_card.md](docs/model_card.md) and
-[docs/data_card.md](docs/data_card.md) for the full discussion.
 
 ## Reproducibility and scope
 
 Every reported number is a property of one specific dataset, split, seed,
-and evaluation design -- not a universal statement about the underlying
-task. All splits are fixed once and reused by every experiment; every
-checkpoint/seed gets its own isolated artifact tree; calibration artifacts
-record and verify provenance (checkpoint/split hashes) before being
-applied; and nothing in this repository hardcodes example metrics as if
-they were real results. Supervised training on a few thousand 128px
-images is feasible on a single consumer GPU in well under an hour per
-experiment. See [docs/reproducibility.md](docs/reproducibility.md) for
-seeds, splits, compute expectations, and notebook details, and
-[docs/data_card.md](docs/data_card.md) for demographic-coverage caveats.
+and evaluation design - not a universal statement about the underlying
+task. 
+All splits are fixed once and reused by every experiment.
 
 ## License / authors
 
-MIT License -- see [LICENSE](LICENSE).
+MIT License - see [LICENSE](LICENSE).
